@@ -95,8 +95,9 @@ class watchDlg(QtWidgets.QDialog):
             basename = file.rsplit(".",1)[0]
             # only includes valid image files
             # findme todo: refine this. currently restricted to smaller sized images for speedier loading, "tif", "tiff", "dng"
+            # excludes temporary files that have ~ in the name
             if ext in ["jpg", "jpeg", "jxl", "heic", "heif"]:
-                if basename not in camera_list:
+                if basename not in camera_list and '~' not in basename:
                     photo_list.append("/".join([photos_path, file]))
 
 
@@ -153,10 +154,11 @@ class watchDlg(QtWidgets.QDialog):
             # align all images from scratch
             isFirst = False
             for frame in chunk.frames:
-                # see https://www.agisoft.com/forum/index.php?topic=11697.0
                 frame.matchPhotos(downscale=4, generic_preselection=True, keep_keypoints=True, reference_preselection=False, mask_tiepoints=False)
-            
+                Metashape.app.update()
+
             chunk.alignCameras(reset_alignment=True)
+            Metashape.app.update()
 
         elif isReset:
             print ("resetting alignment and markers")
@@ -181,6 +183,7 @@ class watchDlg(QtWidgets.QDialog):
                 Metashape.app.update()
 
             chunk.alignCameras(reset_alignment=True)
+            Metashape.app.update()
 
 
         elif isWatching:
@@ -189,8 +192,9 @@ class watchDlg(QtWidgets.QDialog):
                 # add new images to existing alignment
                 for frame in chunk.frames:
                     frame.matchPhotos(downscale=4, reset_matches=False, keep_keypoints=True, generic_preselection=True, reference_preselection=True, reference_preselection_mode=Metashape.ReferencePreselectionSource, mask_tiepoints=True)
-                
+                    Metashape.app.update()
                 chunk.alignCameras(reset_alignment=False)
+                Metashape.app.update()
 
         isProcessing = False
         print ("Stopped processing... waiting and watching")
