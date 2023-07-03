@@ -96,6 +96,7 @@ class watchDlg(QtWidgets.QDialog):
             # only includes valid image files
             # findme todo: refine this. currently restricted to smaller sized images for speedier loading, "tif", "tiff", "dng"
             # excludes temporary files that have ~ in the name
+            # findme debug next: doesn't account for windows copying methods. still get file access error
             if ext in ["jpg", "jpeg", "jxl", "heic", "heif"]:
                 if basename not in camera_list and '~' not in basename:
                     photo_list.append("/".join([photos_path, file]))
