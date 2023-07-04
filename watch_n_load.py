@@ -1,5 +1,6 @@
 # small script to watch a folder and process.
-
+# WARNING, current suggeset pipeline relies on in-camera jpg - this can cause issues with built in distortion profiles for some (especially mirrorless) cameras
+#   can be mitigated by implementing image ocnversion pipleine further upstream
 
 import Metashape
 import PySide2
@@ -73,46 +74,51 @@ class watchDlg(QtWidgets.QDialog):
     
     def load_photos(self):
         print("loading photos")
-        global isProcessing
-        isProcessing = True
-
-
         print(photos_path)
+        global isProcessing
+        global _photo_list
 
+        isProcessing = True
         file_list = os.listdir(photos_path)
-
         photo_list = list()
 
-        camera_list = list()
-        for camera in chunk.cameras:
-            camera_list.append(camera.label)
-
-
-        # iterate through the file list to check for valid file types and uniqueness
-        for file in file_list:
-
-            ext = file.rsplit(".",1)[1].lower()
-            basename = file.rsplit(".",1)[0]
-            # only includes valid image files
-            # findme todo: refine this. currently restricted to smaller sized images for speedier loading, "tif", "tiff", "dng"
-            # excludes temporary files that have ~ in the name
-            # findme debug next: doesn't account for windows copying methods. still get file access error
-            if ext in ["jpg", "jpeg", "jxl", "heic", "heif"]:
-                if basename not in camera_list and '~' not in basename:
-                    photo_list.append("/".join([photos_path, file]))
-
-
-        if photo_list:
-
-            chunk.addPhotos(photo_list)
-            # continue to next processing stage
-
-            print (str(len(photo_list)) + "new photos added")
-            return True
-
+        # a shim to induce a leading delay in the script to reduce the chance of 'file access error'.
+        if _photo_list:
+            photo_list = _photo_list
         else:
-            print ('no photos to add.')
-            return False
+            camera_list = list()
+            for camera in chunk.cameras:
+                camera_list.append(camera.label)
+
+
+            # iterate through the file list to check for valid file types and uniqueness
+            for file in file_list:
+
+                ext = file.rsplit(".",1)[1].lower()
+                basename = file.rsplit(".",1)[0]
+                # only includes valid image files
+                # findme todo: refine this. currently restricted to compressed images to use incamera jpgs for simplicity
+                # excludes temporary files that have ~ in the name
+                if ext in ["jpg", "jpeg", "jxl", "heic", "heif"]:
+                    if basename not in camera_list and '~' not in basename:
+                        photo_list.append("/".join([photos_path, file]))
+
+
+            if photo_list:
+
+                chunk.addPhotos(photo_list)
+                # continue to next processing stage
+
+                print (str(len(photo_list)) + "new photos added")
+
+                _photo_list = photo_list
+                return True
+
+            else:
+                print ('no photos to add.')
+                _photo_list = list()
+                return False
+                
         
 
     def reprocess():
@@ -145,57 +151,61 @@ class watchDlg(QtWidgets.QDialog):
             # detectMarkers(target_type=CircularTarget12bit, tolerance=25, filter_mask=False, inverted=False, noparity=False, maximum_residual=5, minimum_size=0, minimum_dist=5, cameras=photo_list)
         
         p = self.load_photos()        
+        
+        
+        try:    # inelegant solution to handle error thrown when files aren't fully transferred
+            if isFirst:
+                print ("first run")
 
-        if isFirst:
-            print ("first run")
+                # findme todo: allow for reduction of markers to avoid clusters and redetect more after final final alignment (?)
+                chunk.detectMarkers(target_type=Metashape.CircularTarget12bit, tolerance=10, filter_mask=False, inverted=False, noparity=False, maximum_residual=5, minimum_size=0, minimum_dist=5)
 
-            # findme todo: allow for reduction of markers to avoid clusters and redetect more after final final alignment (?)
-            chunk.detectMarkers(target_type=Metashape.CircularTarget12bit, tolerance=10, filter_mask=False, inverted=False, noparity=False, maximum_residual=5, minimum_size=0, minimum_dist=5)
-
-            # align all images from scratch
-            isFirst = False
-            for frame in chunk.frames:
-                frame.matchPhotos(downscale=4, generic_preselection=True, keep_keypoints=True, reference_preselection=False, mask_tiepoints=False)
-                Metashape.app.update()
-
-            chunk.alignCameras(reset_alignment=True)
-            Metashape.app.update()
-
-        elif isReset:
-            print ("resetting alignment and markers")
-            # reset alignment and realign using some of the existing information
-            # findme debug next: something fishy with the behaviour sometimes breaks or left unfinished
-
-            # findme todo: add a merge markers step to have only one detect markers on photo-import
-            # findme todo: expose or preset the tolerance. set low due to DoF issues with 
-            
-            isReset = False
-            chunk.remove(chunk.markers)
-            chunk.point_cloud.removeKeypoints()
-            Metashape.app.update()
-
-            # findme todo: allow for reduction of markers to avoid clusters and redetect more after final final alignment (?)
-            chunk.detectMarkers(target_type=Metashape.CircularTarget12bit, tolerance=20, filter_mask=False, inverted=False, noparity=False, maximum_residual=5, minimum_size=0, minimum_dist=5)
-
-            Metashape.app.update()
-            for frame in chunk.frames:
-                frame.matchPhotos(downscale=4, reset_matches=True, keep_keypoints=True, generic_preselection=False, reference_preselection=True, reference_preselection_mode=Metashape.ReferencePreselectionEstimated, mask_tiepoints=False)
-                # findme todo: add some nuances for dealing with different masks and failed alignments at later stages of processing?
-                Metashape.app.update()
-
-            chunk.alignCameras(reset_alignment=True)
-            Metashape.app.update()
-
-
-        elif isWatching:
-            print ("adding images if they exist")
-            if p:
-                # add new images to existing alignment
+                # align all images from scratch
+                isFirst = False
                 for frame in chunk.frames:
-                    frame.matchPhotos(downscale=4, reset_matches=False, keep_keypoints=True, generic_preselection=True, reference_preselection=True, reference_preselection_mode=Metashape.ReferencePreselectionSource, mask_tiepoints=True)
+                    frame.matchPhotos(downscale=4, generic_preselection=True, keep_keypoints=True, reference_preselection=False, mask_tiepoints=True) # findme debug: mask tie_points versus mask_keypoints options?
                     Metashape.app.update()
-                chunk.alignCameras(reset_alignment=False)
+
+                chunk.alignCameras(reset_alignment=True)
                 Metashape.app.update()
+
+            elif isReset:
+                print ("resetting alignment and markers")
+                # reset alignment and realign using some of the existing information
+                # findme debug next: something fishy with the behaviour sometimes breaks or left unfinished
+
+                # findme todo: add a merge markers step to have only one detect markers on photo-import
+                # findme todo: expose or preset the tolerance. set low due to DoF issues with 
+                
+                isReset = False
+                chunk.remove(chunk.markers)
+                chunk.point_cloud.removeKeypoints()
+                Metashape.app.update()
+
+                # findme todo: allow for reduction of markers to avoid clusters and redetect more after final final alignment (?)
+                chunk.detectMarkers(target_type=Metashape.CircularTarget12bit, tolerance=20, filter_mask=False, inverted=False, noparity=False, maximum_residual=5, minimum_size=0, minimum_dist=5)
+
+                Metashape.app.update()
+                for frame in chunk.frames:
+                    frame.matchPhotos(downscale=4, reset_matches=True, keep_keypoints=True, generic_preselection=False, reference_preselection=True, reference_preselection_mode=Metashape.ReferencePreselectionEstimated, mask_tiepoints=True)
+                    # findme todo: add some nuances for dealing with different masks and failed alignments at later stages of processing?
+                    Metashape.app.update()
+
+                chunk.alignCameras(reset_alignment=True)
+                Metashape.app.update()
+
+            elif isWatching:
+                print ("adding images if they exist")
+                if p:
+                    # add new images to existing alignment
+                    for frame in chunk.frames:
+                        frame.matchPhotos(downscale=4, reset_matches=False, keep_keypoints=True, generic_preselection=True, reference_preselection=True, reference_preselection_mode=Metashape.ReferencePreselectionSource, mask_tiepoints=True)
+                        Metashape.app.update()
+                    chunk.alignCameras(reset_alignment=False)
+                    Metashape.app.update()
+        except: # findme todo: find the correct error exception
+            print("Some sort of error (probably waiting for a file. Will try again next loop")
+
 
         isProcessing = False
         print ("Stopped processing... waiting and watching")
@@ -321,6 +331,7 @@ def watch_capture():
     global isWatching
     global isProcessing
     global photos_path
+    global _photo_list # a cached photolist as shim for file transfer issues
     global isReset
     global isNewFocus
     global isOn
@@ -331,6 +342,7 @@ def watch_capture():
     isWatching = False      # always start without the watch enabled, even if processing stages were left running
     isNewFocus = False      # flag so the next bactch of photos added are placed in a new calibration 
     isOn = True
+    _photo_list = list()
 
     
     # reset the monitor thread
@@ -343,8 +355,8 @@ def watch_capture():
         print("the thread is dead, long live the thread")
         isProcessing = False
     isReset = False
-    isFirst = True
-    # checks for existing alignment to choose appropriate alignment settings
+    isFirst = True  
+    # checks for existing alignment so reset is used if an alignment already exists
     for camera in chunk.cameras:
         if camera.transform:
             isFirst=False
