@@ -54,6 +54,7 @@ class watchDlg(QtWidgets.QDialog):
         layout.addWidget(self.btnPause, 1, 5)
         layout.addWidget(self.btnFocusGroup, 5, 1)
         layout.addWidget(self.btnClose, 5, 5)
+  
 
         self.setLayout(layout)
 
@@ -70,18 +71,29 @@ class watchDlg(QtWidgets.QDialog):
 
 
 
-    # loads photos in the input folder and checks they don't already exist in thr project (assumes unique photo names)
-    
+    # loads photos in the input folder
+    # checks they don't already exist in thr project (assumes unique photo names)
+    # and cleans up any that have been deleted during capture.
     def load_photos(self):
         print("loading photos")
         print(photos_path)
-        global isProcessing
         global _photo_list
 
-        isProcessing = True
+        #findme todo: add a characters check in file path to make sure there aren't any strange things
+        #findme todo next:  get the chunk name to avoid any accidental loading into other chunks
+
         file_list = os.listdir(photos_path)
         photo_list = list()     #temporary list based on current state
         label_list = list()
+
+        # check for missing images and remove, 
+
+        for i in range(len(chunk.cameras)):
+            exist = os.path.isfile(chunk.cameras[i].photo.path)
+            if exist == False:
+                
+                chunk.remove(chunk.cameras[i])
+                print ("removed missing camera" + chunk.cameras[i].photo.label)
 
         # get the current directory and chunk state and set the photo list for the next pass.
         camera_list = list()
@@ -107,9 +119,14 @@ class watchDlg(QtWidgets.QDialog):
         else:
             print ('no photos to add.')
             return label_list
+        
+
 
         # findme todo: allow camera grouping for then applying different callibration
         #   see https://www.agisoft.com/forum/index.php?topic=6383.0
+
+
+
 
         # findme todo next: tidy up the logic here! a shim to induce a leading delay in the script to reduce the chance of 'file access error'.
         # see sketch on remarlable
@@ -132,6 +149,8 @@ class watchDlg(QtWidgets.QDialog):
 
         
 
+    # findme todo: add a tidyup button?
+    # structures folders by cameras and groups (or seperate script?)
                 
         
 
@@ -275,12 +294,20 @@ class watchDlg(QtWidgets.QDialog):
             timer = timer - 1
             self.monitor()
         else:
-            print("end of watch process deleting the monitor")
+            print("*********************************************************************")
+            print("end of watch process, deleting the monitor")
             del m
+            print("THE THREAD IS DEAD")
             # findme debug next: something might be getting stuck in a loop and the thread isn't being deleted.
             
 
+
+
 #------------------  button actions -----------
+
+
+    # findme todo:  add focus masks
+        # https://www.agisoft.com/forum/index.php?topic=14057.0
 
     # changes the status flag to stop the watching next time the timer loops out
     def watch_pause(self):
