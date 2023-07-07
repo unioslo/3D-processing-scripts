@@ -80,44 +80,58 @@ class watchDlg(QtWidgets.QDialog):
 
         isProcessing = True
         file_list = os.listdir(photos_path)
-        photo_list = list()
+        photo_list = list()     #temporary list based on current state
+        label_list = list()
 
-        # a shim to induce a leading delay in the script to reduce the chance of 'file access error'.
-        if _photo_list:
-            photo_list = _photo_list
+        # get the current directory and chunk state and set the photo list for the next pass.
+        camera_list = list()
+        for camera in chunk.cameras:
+            camera_list.append(camera.label)
+
+        # iterate through the file list to check for valid file types and uniqueness
+        for file in file_list:
+            ext = file.rsplit(".",1)[1].lower()
+            basename = file.rsplit(".",1)[0]
+            # only includes valid image files
+            # findme todo: refine this. currently restricted to compressed images to use incamera jpgs for simplicity
+            # excludes temporary files that have ~ in the name
+            if ext in ["jpg", "jpeg", "jxl", "heic", "heif"]:
+                if basename not in camera_list and '~' not in basename:
+                    label_list.append(basename) # shim to pass camera names for selecting
+                    photo_list.append("/".join([photos_path, file]))
+
+        if photo_list:
+            chunk.addPhotos(photo_list)
+            print (str(len(photo_list)) + " new photos added")
+            return label_list
         else:
-            camera_list = list()
-            for camera in chunk.cameras:
-                camera_list.append(camera.label)
+            print ('no photos to add.')
+            return label_list
 
+        # findme todo: allow camera grouping for then applying different callibration
+        #   see https://www.agisoft.com/forum/index.php?topic=6383.0
 
-            # iterate through the file list to check for valid file types and uniqueness
-            for file in file_list:
+        # findme todo next: tidy up the logic here! a shim to induce a leading delay in the script to reduce the chance of 'file access error'.
+        # see sketch on remarlable
+    #    if _photo_list:        
+      #      chunk.addPhotos(_photo_list)
+            # continue to next processing stage
 
-                ext = file.rsplit(".",1)[1].lower()
-                basename = file.rsplit(".",1)[0]
-                # only includes valid image files
-                # findme todo: refine this. currently restricted to compressed images to use incamera jpgs for simplicity
-                # excludes temporary files that have ~ in the name
-                if ext in ["jpg", "jpeg", "jxl", "heic", "heif"]:
-                    if basename not in camera_list and '~' not in basename:
-                        photo_list.append("/".join([photos_path, file]))
+     #       print (str(len(photo_list)) + " new photos added")
 
+     #       if photo_list:
+       #         _photo_list = photo_list[:]
+      #      else:
+       #         _photo_list.clear()
+        #    return True
+     #   else:
+      #      if photo_list: # findme debug: unclear if you can set a list to an empty list may not need this if
+       #         _photo_list = photo_list[:]
+        #    print ('no photos to add.')
+         #   return False
 
-            if photo_list:
+        
 
-                chunk.addPhotos(photo_list)
-                # continue to next processing stage
-
-                print (str(len(photo_list)) + "new photos added")
-
-                _photo_list = photo_list
-                return True
-
-            else:
-                print ('no photos to add.')
-                _photo_list = list()
-                return False
                 
         
 
@@ -139,9 +153,13 @@ class watchDlg(QtWidgets.QDialog):
         global isFirst
         global isReset
 
+        print("----------------------")
+        print("process loop")
         print("isProcessing = " + str(isProcessing))
         print("isReset = " + str(isReset))
         print("isFirst = " + str(isFirst))
+        print("isWatching = " + str(isWatching))
+
 
 
         isProcessing = True
@@ -150,10 +168,11 @@ class watchDlg(QtWidgets.QDialog):
             # see https://www.agisoft.com/forum/index.php?topic=10112.0
             # detectMarkers(target_type=CircularTarget12bit, tolerance=25, filter_mask=False, inverted=False, noparity=False, maximum_residual=5, minimum_size=0, minimum_dist=5, cameras=photo_list)
         
-        p = self.load_photos()        
-        
+        label_list = self.load_photos()        
+        print (" photos added. Trying alignment")
         
         try:    # inelegant solution to handle error thrown when files aren't fully transferred
+            print ("trying...")
             if isFirst:
                 print ("first run")
 
@@ -163,19 +182,22 @@ class watchDlg(QtWidgets.QDialog):
                 # align all images from scratch
                 isFirst = False
                 for frame in chunk.frames:
-                    frame.matchPhotos(downscale=4, generic_preselection=True, keep_keypoints=True, reference_preselection=False, mask_tiepoints=True) # findme debug: mask tie_points versus mask_keypoints options?
+                    frame.matchPhotos(downscale=4, generic_preselection=True, keep_keypoints=True, reference_preselection=False, mask_tiepoints=False)
                     Metashape.app.update()
 
                 chunk.alignCameras(reset_alignment=True)
                 Metashape.app.update()
 
             elif isReset:
-                print ("resetting alignment and markers")
+                print("--------------------------------")
+                print ("resetting alignment and markers. using keypoint masks)")
                 # reset alignment and realign using some of the existing information
+                # resetting will use masks
                 # findme debug next: something fishy with the behaviour sometimes breaks or left unfinished
 
-                # findme todo: add a merge markers step to have only one detect markers on photo-import
-                # findme todo: expose or preset the tolerance. set low due to DoF issues with 
+                # findme todo: add a merge markers step to have detect markers on photo-import
+                # see https://www.agisoft.com/forum/index.php?topic=10112.0
+                # findme todo: expose or make presets for tolerance and invertedness. set low due to DoF issues with 
                 
                 isReset = False
                 chunk.remove(chunk.markers)
@@ -187,7 +209,7 @@ class watchDlg(QtWidgets.QDialog):
 
                 Metashape.app.update()
                 for frame in chunk.frames:
-                    frame.matchPhotos(downscale=4, reset_matches=True, keep_keypoints=True, generic_preselection=False, reference_preselection=True, reference_preselection_mode=Metashape.ReferencePreselectionEstimated, mask_tiepoints=True)
+                    frame.matchPhotos(downscale=4, reset_matches=True, keep_keypoints=True, generic_preselection=False, reference_preselection=True, reference_preselection_mode=Metashape.ReferencePreselectionEstimated, mask_tiepoints=False, filter_mask = True)
                     # findme todo: add some nuances for dealing with different masks and failed alignments at later stages of processing?
                     Metashape.app.update()
 
@@ -195,20 +217,34 @@ class watchDlg(QtWidgets.QDialog):
                 Metashape.app.update()
 
             elif isWatching:
-                print ("adding images if they exist")
-                if p:
+                print ("adding images if they exist and realigning")
+                if label_list:
                     # add new images to existing alignment
                     for frame in chunk.frames:
-                        frame.matchPhotos(downscale=4, reset_matches=False, keep_keypoints=True, generic_preselection=True, reference_preselection=True, reference_preselection_mode=Metashape.ReferencePreselectionSource, mask_tiepoints=True)
+                        frame.matchPhotos(downscale=4, reset_matches=False, keep_keypoints=True, generic_preselection=True, reference_preselection=True, reference_preselection_mode=Metashape.ReferencePreselectionSource, mask_tiepoints=False)
                         Metashape.app.update()
                     chunk.alignCameras(reset_alignment=False)
+
+                    # selects the aligned cameras, useful for seeing result of last import.
+                    for camera in chunk.cameras:
+                        if (camera.label in label_list):
+                                camera.selected = True
+                        else:
+                                camera.selected = False
+
                     Metashape.app.update()
+
+
+
         except: # findme todo: find the correct error exception
             print("Some sort of error (probably waiting for a file. Will try again next loop")
 
 
         isProcessing = False
-        print ("Stopped processing... waiting and watching")
+        print("===========================================")
+        print ("Finished processing... waiting and watching")
+        print("===========================================")
+
 
     # async loop handler. Will run in the background checking if there is anything to process every
     def monitor(self):
@@ -224,7 +260,8 @@ class watchDlg(QtWidgets.QDialog):
             self.watcher()
 
         else:
-            print("not watching stopped")
+            if isProcessing:
+                print("not watching, doing")
 
         app.processEvents()
 
@@ -232,7 +269,7 @@ class watchDlg(QtWidgets.QDialog):
         # but allows active processing events to carry on in the background if theyæve started
         # findme todo: restructure with signals to put processing in main thread
         if isOn:
-            time.sleep(3)
+            time.sleep(10)
             # findme todo: bypass the recurrance limit in python in a nice way
             print("timeout = " + str(timer))
             timer = timer - 1
@@ -240,7 +277,7 @@ class watchDlg(QtWidgets.QDialog):
         else:
             print("end of watch process deleting the monitor")
             del m
-            # findme todo next: something might be getting stuck in a loop and the thread isn't being deleted.
+            # findme debug next: something might be getting stuck in a loop and the thread isn't being deleted.
             
 
 #------------------  button actions -----------
@@ -249,6 +286,9 @@ class watchDlg(QtWidgets.QDialog):
     def watch_pause(self):
         global isWatching
         global isFirst
+        global isReset
+
+        Reset = False # stops it ressetting everytime you restart the scrip and want to watch
 
         if not 'm' in globals():
             self.startMonitor()
@@ -263,6 +303,7 @@ class watchDlg(QtWidgets.QDialog):
             self.setWindowTitle("Watch mode: running...")
             # starts a new monitor function on a new thread
 
+        print("-----watch/pause pressed")
         print ("isFirst")
         print (isFirst)
         print ("isWatching")
@@ -360,7 +401,7 @@ def watch_capture():
     for camera in chunk.cameras:
         if camera.transform:
             isFirst=False
-            isReset = True         # flag that rejiggers whole alignment from the beginning
+    #        isReset = True         # flag that rejiggers whole alignment from the beginning
 
     
 
