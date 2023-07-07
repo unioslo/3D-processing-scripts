@@ -83,22 +83,19 @@ class watchDlg(QtWidgets.QDialog):
         #findme todo next:  get the chunk name to avoid any accidental loading into other chunks
 
         file_list = os.listdir(photos_path)
-        photo_list = list()     #temporary list based on current state
-        label_list = list()
+        photo_list = list()     # temporary list of photo paths to be added
+        label_list = list()     # temporay list of photos (without paths) to be added
+        camera_list = list()    # cameras in the chunk
 
-        # check for missing images and remove, 
-
-        for i in range(len(chunk.cameras)):
-            exist = os.path.isfile(chunk.cameras[i].photo.path)
-            if exist == False:
-                
-                chunk.remove(chunk.cameras[i])
-                print ("removed missing camera" + chunk.cameras[i].label)
-
-        # get the current directory and chunk state and set the photo list for the next pass.
-        camera_list = list()
+        # get current camera list and remove any that have been deleted at source.
+        
         for camera in chunk.cameras:
-            camera_list.append(camera.label)
+            exist = os.path.isfile(camera.photo.path)
+            if exist:
+                camera_list.append(camera.label)
+            else:
+                chunk.remove(camera)
+
 
         # iterate through the file list to check for valid file types and uniqueness
         for file in file_list:
@@ -417,7 +414,7 @@ def watch_capture():
     if 'm' in globals():
         # STILL WORKING ON THE LAST PROCESS
         isOn=True
-        print("thread liveth")
+        print("thread liveth, wait for processing to end then restart metashape")
         print(m)
     else:
         print("the thread is dead, long live the thread")
