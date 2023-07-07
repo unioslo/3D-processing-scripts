@@ -93,7 +93,7 @@ class watchDlg(QtWidgets.QDialog):
             if exist == False:
                 
                 chunk.remove(chunk.cameras[i])
-                print ("removed missing camera" + chunk.cameras[i].photo.label)
+                print ("removed missing camera" + chunk.cameras[i].label)
 
         # get the current directory and chunk state and set the photo list for the next pass.
         camera_list = list()
