@@ -16,11 +16,14 @@ class watchDlg(QtWidgets.QDialog):
 
     # intercept close window event to stop the listen subroutine
     def reject(self):
-       global isOn
-       # change flag so monitor thread will come out of loop
-       isOn = False
-       print("Watch mode closed. Running processes will continue")
-       return super(watchDlg, self).reject()
+        global isOn
+        # change flag so monitor thread will come out of loop
+        isOn = False
+        print("\n\n==================================================")
+        print("Watch mode closed.")
+        print("Running processes will continue")
+        print("==================================================\n\n")
+        return super(watchDlg, self).reject()
 
     def __init__(self, parent):
         global isOn
@@ -83,6 +86,8 @@ class watchDlg(QtWidgets.QDialog):
         #findme todo next:  get the chunk name to avoid any accidental loading into other chunks
 
         file_list = os.listdir(photos_path)
+#        print("file list:")
+#        print(file_list)
         photo_list = list()     # temporary list of photo paths to be added
         label_list = list()     # temporay list of photos (without paths) to be added
         camera_list = list()    # cameras in the chunk
@@ -97,21 +102,27 @@ class watchDlg(QtWidgets.QDialog):
                 chunk.remove(camera)
 
 
+        # findme todo: refine this. currently restricted to compressed images to use incamera jpgs for simplicity
+        # only includes valid image files
+        ext = ["jpg", "jpeg", "jxl", "heic", "heif"]
         # iterate through the file list to check for valid file types and uniqueness
         for file in file_list:
-            ext = file.rsplit(".",1)[1].lower()
-            basename = file.rsplit(".",1)[0]
-            # only includes valid image files
-            # findme todo: refine this. currently restricted to compressed images to use incamera jpgs for simplicity
+
             # excludes temporary files that have ~ in the name
-            if ext in ["jpg", "jpeg", "jxl", "heic", "heif"]:
+            if file.lower().endswith(tuple(ext)):
+                basename = file.rsplit(".",1)[0]
                 if basename not in camera_list and '~' not in basename:
                     label_list.append(basename) # shim to pass camera names for selecting
                     photo_list.append("/".join([photos_path, file]))
 
         if photo_list:
-            chunk.addPhotos(photo_list)
-            print (str(len(photo_list)) + " new photos added")
+            try:
+                chunk.addPhotos(photo_list)
+                print (str(len(photo_list)) + " new photos added")
+            except: # findme todo: find the correct error exception
+                print("Unexpected item in the photo area")
+                label_list.clear()
+
             return label_list
         else:
             print ('no photos to add.')
@@ -257,9 +268,9 @@ class watchDlg(QtWidgets.QDialog):
 
 
         isProcessing = False
-        print("===========================================")
+        print("\n\n===========================================")
         print ("Finished processing... waiting and watching")
-        print("===========================================")
+        print("===========================================\n\n")
 
 
     # async loop handler. Will run in the background checking if there is anything to process every
@@ -267,17 +278,15 @@ class watchDlg(QtWidgets.QDialog):
         global timer
         global m
 
-
-        print ("folder watch started")
         ##### findme todo: consider watchdog package for filesystem response ####
 
         if isWatching:
             print("watching")
             self.watcher()
-
+        elif isProcessing:
+            print("not watching, doing")
         else:
-            if isProcessing:
-                print("not watching, doing")
+            print("idling")
 
         app.processEvents()
 
@@ -291,10 +300,12 @@ class watchDlg(QtWidgets.QDialog):
             timer = timer - 1
             self.monitor()
         else:
-            print("*********************************************************************")
+            print("\n\n\n*********************************************************************")
             print("end of watch process, deleting the monitor")
             del m
             print("THE THREAD IS DEAD")
+            print("Safe to do other things")
+            print("*********************************************************************\n\n\n")
             # findme debug next: something might be getting stuck in a loop and the thread isn't being deleted.
             
 
