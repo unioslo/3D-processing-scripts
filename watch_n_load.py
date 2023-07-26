@@ -40,10 +40,6 @@ class watchDlg(QtWidgets.QDialog):
         self.btnPause.setFixedSize(90, 50)
         self.btnPause.setToolTip("Stops the watch procedure. Background processes continue. use for restarting after manual editing")
 
-        self.btnFocusGroup = QtWidgets.QPushButton("New Focus Group")
-        self.btnFocusGroup.setFixedSize(90, 50)
-        self.btnFocusGroup.setToolTip("Creates a new focus group for next image set")
-
         self.btnClose = QtWidgets.QPushButton("Close")
         self.btnClose.setFixedSize(90, 50)
         self.btnClose.setToolTip("Closes this window, running procceses continue")
@@ -55,7 +51,6 @@ class watchDlg(QtWidgets.QDialog):
 
         layout.addWidget(self.btnStartReset, 1, 1)
         layout.addWidget(self.btnPause, 1, 5)
-        layout.addWidget(self.btnFocusGroup, 5, 1)
         layout.addWidget(self.btnClose, 5, 5)
   
 
@@ -63,7 +58,7 @@ class watchDlg(QtWidgets.QDialog):
 
         QtCore.QObject.connect(self.btnStartReset, QtCore.SIGNAL("clicked()"), self.start_reset)
         QtCore.QObject.connect(self.btnPause, QtCore.SIGNAL("clicked()"), self.watch_pause)
-        QtCore.QObject.connect(self.btnFocusGroup, QtCore.SIGNAL("clicked()"), self.makeFocusGroup)
+        QtCore.QObject.connect(self.btnTidyUp, QtCore.SIGNAL("clicked()"), self.makeFocusGroup)
         QtCore.QObject.connect(self.btnClose, QtCore.SIGNAL("clicked()"), self, QtCore.SLOT("reject()"))
 
         self.setWindowModality(QtCore.Qt.NonModal)
@@ -228,6 +223,11 @@ class watchDlg(QtWidgets.QDialog):
                 
                 isReset = False
                 chunk.remove(chunk.markers)
+
+                # findme todo: allow for reduction of markers to avoid clusters and redetect more after final final alignment (?)
+                # findme todo: add detect markers toggle?
+                chunk.detectMarkers(target_type=Metashape.CircularTarget12bit, tolerance=10, filter_mask=False, inverted=False, noparity=False, maximum_residual=5, minimum_size=0, minimum_dist=5)
+
                 chunk.point_cloud.removeKeypoints()
                 Metashape.app.update()
 
