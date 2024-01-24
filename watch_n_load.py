@@ -287,6 +287,7 @@ class watchDlg(QtWidgets.QDialog):
             print("not watching, doing")
         else:
             print("idling")
+            # findme todo next: stop appears to be failing and timeout keeps running causing crash
 
         app.processEvents()
 
