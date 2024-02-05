@@ -1,0 +1,129 @@
+
+    # todo clean up processed markers
+    # chunk.removeMarkerGroup(group)
+
+        # Get the three markers (assuming the marker labels are "A", "B", and "C")
+        marker_labels = ["A", "B", "C"]
+        markers = []
+        for marker_label in marker_labels:
+            marker = chunk.marker_with_label(marker_label)
+            markers.append(marker)
+
+        # Get the positions of the markers in the chunk coordinate system
+        positions = [chunk.transform.matrix.mulp(marker.position) for marker in markers]
+
+        # Calculate the plane parameters
+        normal_vector = Metashape.Vector.cross((positions[1] - positions[0]), (positions[2] - positions[0])).normalized()
+        plane_origin = positions[0]
+
+        # Create the plane object
+        plane = Metashape.Plane(normal_vector, plane_origin)
+
+        print("Plane defined successfully:", plane)
+
+
+
+        # Abort if the marker is not found
+        if not marker:
+            print(f"No marker found with name {marker_name}!")
+            exit()
+
+        # Get the plane parameters based on the marker location and orientation
+        plane = chunk.transform.matrix.mulp(marker.position)  # Position in chunk coordinates
+        normal = chunk.transform.matrix.mulv(marker.normal).normalized()  # Normal vector in chunk coordinates
+
+
+        # Generate a DEM from the mesh
+        dem = chunk.elevation
+        if not dem:
+            chunk.buildDem(planar=True, projection=Metashape.Plane(normal, plane))
+
+
+        # Generate an orthomosaic from the DEM
+        orthomosaic = chunk.orthomosaic
+        if not orthomosaic:
+            chunk.buildOrthomosaic()
+
+
+    save pointer file and reload in new group
+
+
+
+    
+        # Generate depth maps from the dense cloud
+        depth_maps = chunk.depth_maps
+        if not depth_maps:
+            chunk.buildDepthMaps(downscale=1, filter_mode=Metashape.FilterMode.MildFiltering)
+
+        # Generate a mesh from the depth maps
+        mesh = chunk.model
+        if not mesh:
+            chunk.buildModel()
+
+
+
+
+
+
+
+
+# Iterate through each marker group and perform an action if they are unprocessed profiles
+# findme TODO: the new marker group part has been implemented yet
+for index, group in enumerate(markergroups):
+    if group.label.startswith('pinner'):
+        print(group)
+        # Create a string variable to hold the text contents of the file
+        file_contents = "label;x;y;z\n"  # Add a header line 
+
+        # Create a new marker group for normalized coordinates
+        new_group_name = f"profil_markers_{index}"
+     #   new_group = chunk.addmarker_groups()
+     #   new_group.name = new_group_name
+        for marker in chunk.marker_groups[index]:
+            print(marker.label)
+
+        # Take the first point in the original group and create new marker based on it
+        point1 = group[0]
+        x, y, z, err = chunk.crs.project(point1.coord)
+
+        new_x = round(x, 2)
+        new_y = round(y, 2)
+        new_z = baseline
+        # new_z = round(z * 4) / 4.0
+
+        # Loop through the list and add each tuple to the text string
+        file_contents += f"1_{new_group_name};{new_x};{new_y};{new_z}\n"
+        file_contents += f"3_{new_group_name};{new_x};{new_y};{new_z+10}\n"
+
+
+        point2 = group[1]
+        x, y, z, err = chunk.crs.project(point1.coord)
+
+        new_x = round(x, 2)
+        new_y = round(y, 2)
+        new_z = baseline
+        # new_z = round(z * 4) / 4.0
+        file_contents += f"2_{new_group_name};{new_x};{new_y};{new_z}\n"
+
+
+        print(file_contents)
+
+        # Get the path of the current project
+        project_path = doc.path
+        parent_dir = os.path.dirname(project_path)
+        # Define the file name and content
+        file_name = "new_group_name"
+
+        # Write the contents to a file in the same directory as the project
+        file_path = project_path + "/points/" + file_name
+        with open(file_path, "w") as f:
+            f.write(file_contents)
+
+
+        # Write the contents to a file
+        filename = "example.txt"
+        with open(filename, "w") as f:
+            f.write(file_contents)
+
+        print("Processing completed successfully!")
+        
