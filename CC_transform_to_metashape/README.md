@@ -6,9 +6,11 @@ This is done through regex pattern matching identifying each 4x4 matrix so a com
 ## note on units
 Includes selection of units used during the transform process.
 
-If you exported models in mm and performed alignment in cloud compare (common when aligning to structured light scans),
-then it is necessary to compensate for this in metashape where the local reference continues to function in metres.
+If your reference model is in mm (common with CT or structured light data) you need to apply a 1000 x scale in cloud compare before performing the alignment.
+See screenshot (edit - mulitply scale)
 
-This appears to be true even when using a CRS set to mm units.
+when importing the transform in metashape, you must select the 'mm' button.
+
+
 
 Use of imperial measurements has not been tested.
